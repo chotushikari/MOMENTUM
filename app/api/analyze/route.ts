@@ -61,7 +61,7 @@ const analysisSchema = {
       required: ["stage", "movement", "nextWatch"],
       properties: { stage: { type: "string" }, movement: { type: "string" }, nextWatch: { type: "string" } },
     },
-    state: { type: "string", enum: ["viral", "emerging", "established", "fading", "unknown"] },
+    state: { type: "string", enum: ["viral", "emerging", "accelerating", "established", "cooling", "fading", "unknown"] },
     confidence: { type: "string", enum: ["high", "medium", "low", "unavailable"] },
     evidenceNotes: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 5 },
     hooks: {
@@ -194,7 +194,7 @@ function parseAnalysis(value: unknown): { analysis: TrendAnalysis; opportunities
   const participationMechanics = stringValue(value.participationMechanics);
   const evidenceNotes = stringArray(value.evidenceNotes, 5);
   const remixVectors = stringArray(trendDna.remixVectors, 5);
-  const trendState = enumValue(value.state, ["viral", "emerging", "established", "fading", "unknown"] as const);
+  const trendState = enumValue(value.state, ["viral", "emerging", "accelerating", "established", "cooling", "fading", "unknown"] as const);
   const confidence = enumValue(value.confidence, ["high", "medium", "low", "unavailable"] as const);
   const contentPlan = parseContentPlan(value.contentPlan);
   if (!whyItWorks || dnaValues.some((item) => !item) || structureValues.some((item) => !item) || trendDnaValues.some((item) => !item) || evolutionValues.some((item) => !item) || !hookAnalysis || !presentationStyle || !emotionalMechanics || !participationMechanics || !evidenceNotes || !remixVectors || !trendState || !confidence || !contentPlan) return undefined;

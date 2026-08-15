@@ -16,6 +16,8 @@ export async function GET(request: Request) {
   const filters: ScanFilters = {
     region: textParam(url.searchParams.get("region"), "Delhi NCR"),
     category: textParam(url.searchParams.get("category"), "Food"),
+    query: textParam(url.searchParams.get("query"), ""),
+    language: textParam(url.searchParams.get("language"), ""),
     subcategory: textParam(url.searchParams.get("subcategory"), ""),
     subNiche: textParam(url.searchParams.get("subNiche"), ""),
     niche: textParam(url.searchParams.get("niche"), ""),

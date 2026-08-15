@@ -22,7 +22,8 @@ export type HookVariantType = (typeof hookVariantTypes)[number];
 export type ContentDuration = (typeof contentDurations)[number];
 export type OpportunityLevel = "high" | "promising" | "watch";
 export type AnalysisMode = "sample" | "openai" | "unavailable";
-export type TrendState = "viral" | "emerging" | "established" | "fading" | "unknown";
+export type TrendState = "viral" | "emerging" | "accelerating" | "established" | "cooling" | "fading" | "unknown";
+export type RetrievalMode = "country-viral" | "targeted";
 export type Confidence = "high" | "medium" | "low" | "unavailable";
 export type ScanStatus =
   | "success"
@@ -35,6 +36,8 @@ export type ScanStatus =
 export interface ScanFilters {
   region: string;
   category: string;
+  query?: string;
+  language?: string;
   subcategory?: string;
   subNiche?: string;
   niche: string;
@@ -49,6 +52,10 @@ export interface Short {
   description?: string;
   channel: string;
   channelId?: string;
+  categoryId?: string;
+  tags?: readonly string[];
+  languageCode?: string;
+  captionAvailable?: boolean;
   publishedAt: string;
   thumbnailUrl: string;
   durationSeconds?: number;
@@ -67,9 +74,26 @@ export interface HistoricalObservation {
   comments?: number;
 }
 
+export interface HistoricalMetrics {
+  observationCount: number;
+  viewsPerHour?: number;
+  engagementVelocity?: number;
+  acceleration?: number;
+  direction: "accelerating" | "cooling" | "stable" | "unavailable";
+}
+
 export interface DerivedMetrics {
   viralScore?: number;
   momentum?: number;
+  attention?: number;
+  ageHours?: number;
+  viewsPerHour?: number;
+  engagementRate?: number;
+  commentsPerThousandViews?: number;
+  clusterSize?: number;
+  clusterDensity?: number;
+  saturationProxy?: number;
+  historical?: HistoricalMetrics;
   momentumBasis: "historical" | "cross-sectional" | "unavailable";
   freshness: string;
   saturation: "fresh" | "building" | "crowded" | "unknown";
@@ -189,6 +213,7 @@ export interface PersonalizedOpportunity {
 
 export interface Trend {
   id: string;
+  clusterId?: string;
   topic: string;
   category: string;
   representative: Short;
@@ -203,12 +228,28 @@ export interface DashboardSnapshot {
   generatedAt: string;
   filters: ScanFilters;
   trends: readonly Trend[];
+  diagnostics?: ScanDiagnostics;
+}
+
+export interface ScanDiagnostics {
+  retrievalMode: RetrievalMode;
+  queriesExecuted: readonly string[];
+  apiRequests: number;
+  quotaUnits: number;
+  candidatesRetrieved: number;
+  candidatesRejected: number;
+  shortsRetained: number;
+  clustersGenerated: number;
+  openaiRequests: number;
+  representativeResults: number;
+  historicalObservations: number;
 }
 
 export interface ScanResponse {
   status: ScanStatus;
   mode: DataMode;
   snapshot?: DashboardSnapshot;
+  diagnostics?: ScanDiagnostics;
   message?: string;
 }
 
@@ -276,6 +317,10 @@ export interface YouTubeSearchItem {
     description?: unknown;
     channelTitle?: unknown;
     channelId?: unknown;
+    categoryId?: unknown;
+    tags?: unknown;
+    defaultLanguage?: unknown;
+    defaultAudioLanguage?: unknown;
     publishedAt?: unknown;
     thumbnails?: {
       high?: { url?: unknown };
@@ -287,7 +332,23 @@ export interface YouTubeSearchItem {
 
 export interface YouTubeVideoItem {
   id?: unknown;
-  contentDetails?: { duration?: unknown };
+  snippet?: {
+    title?: unknown;
+    description?: unknown;
+    channelTitle?: unknown;
+    channelId?: unknown;
+    categoryId?: unknown;
+    tags?: unknown;
+    publishedAt?: unknown;
+    thumbnails?: {
+      high?: { url?: unknown };
+      medium?: { url?: unknown };
+      default?: { url?: unknown };
+    };
+    defaultLanguage?: unknown;
+    defaultAudioLanguage?: unknown;
+  };
+  contentDetails?: { duration?: unknown; caption?: unknown };
   statistics?: {
     viewCount?: unknown;
     likeCount?: unknown;
@@ -297,5 +358,6 @@ export interface YouTubeVideoItem {
 
 export interface YouTubeListResponse<TItem> {
   items?: readonly TItem[];
+  nextPageToken?: unknown;
   error?: { errors?: readonly { reason?: unknown }[] };
 }
