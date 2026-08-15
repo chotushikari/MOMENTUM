@@ -14,11 +14,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const platform = textParam(url.searchParams.get("platform"), "youtube-shorts") as Platform;
   const filters: ScanFilters = {
-    region: textParam(url.searchParams.get("region"), "India"),
+    region: textParam(url.searchParams.get("region"), "Delhi NCR"),
     category: textParam(url.searchParams.get("category"), "Food"),
-    subcategory: textParam(url.searchParams.get("subcategory"), "Street Food"),
-    subNiche: textParam(url.searchParams.get("subNiche"), "Old Delhi food challenges"),
-    niche: textParam(url.searchParams.get("niche"), "Street Food"),
+    subcategory: textParam(url.searchParams.get("subcategory"), ""),
+    subNiche: textParam(url.searchParams.get("subNiche"), ""),
+    niche: textParam(url.searchParams.get("niche"), ""),
     platform: validPlatforms.includes(platform) ? platform : "youtube-shorts",
     timeRange: textParam(url.searchParams.get("timeRange"), "Last 24h"),
   };

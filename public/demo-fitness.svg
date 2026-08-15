@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600">
+  <rect width="960" height="600" fill="#e3ded3"/>
+  <rect x="62" y="62" width="836" height="476" fill="#405b59"/>
+  <path d="M170 415L330 210l110 138 105-92 190 159" fill="none" stroke="#f0a65b" stroke-width="34"/>
+  <text x="126" y="154" fill="#fbfaf7" font-family="Arial, sans-serif" font-size="43" font-weight="700">SMALL WINS</text>
+  <text x="126" y="208" fill="#f0a65b" font-family="Arial, sans-serif" font-size="25" font-weight="700">HIGH-PROTEIN / FAST</text>
+</svg>

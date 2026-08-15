@@ -8,6 +8,9 @@ export const metadata: Metadata = {
     template: "%s | MOMENTUM",
   },
   description: "Short-form intelligence for what is going viral next.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

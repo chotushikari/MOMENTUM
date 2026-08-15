@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600">
+  <rect width="960" height="600" fill="#b9c9c5"/>
+  <rect x="54" y="54" width="852" height="492" fill="#6b7f78"/>
+  <path d="M54 404L250 250l125 91 160-184 371 247v142H54z" fill="#f0a65b"/>
+  <path d="M54 446l235-126 120 62 130-111 367 184v91H54z" fill="#273936"/>
+  <text x="112" y="142" fill="#fbfaf7" font-family="Arial, sans-serif" font-size="42" font-weight="700">UNDER ₹100</text>
+  <text x="112" y="194" fill="#f0a65b" font-family="Arial, sans-serif" font-size="24" font-weight="700">A CITY IS A CHALLENGE</text>
+</svg>

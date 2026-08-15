@@ -38,9 +38,11 @@ export async function POST(request: Request) {
     return NextResponse.json<TaxonomyResponse>({ status: "error", mode: "unavailable", message: "Choose a category and subcategory first." }, { status: 400 });
   }
 
+  const region = typeof body.region === "string" ? body.region.trim().slice(0, 60) : "";
   const category = body.category.trim().slice(0, 60);
   const subcategory = body.subcategory.trim().slice(0, 60);
-  const cacheKey = `${category.toLowerCase()}::${subcategory.toLowerCase()}`;
+  const query = typeof body.query === "string" ? body.query.trim().slice(0, 100) : "";
+  const cacheKey = [region, category, subcategory, query].map((value) => value.toLowerCase()).join("::");
   const cached = cache.get(cacheKey);
   if (cached) return NextResponse.json<TaxonomyResponse>({ status: "success", mode: "openai", subniches: cached, message: "Cached taxonomy suggestions." });
 
@@ -55,7 +57,7 @@ export async function POST(request: Request) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
         model: "gpt-4.1-mini",
-        input: `Suggest 5 to 8 specific, current sub-niches for the technology creator intelligence category "${category}" and subcategory "${subcategory}". Return only concise noun phrases; do not invent metrics, events, or claims.`,
+        input: `Suggest 5 to 8 specific sub-niches for creator intelligence. Region: "${region || "global"}". Category: "${category}". Subcategory: "${subcategory}". Search intent: "${query || "none"}". Return only concise noun phrases; do not invent metrics, events, or claims.`,
         max_output_tokens: 300,
         text: { format: { type: "json_schema", name: "taxonomy_suggestions", strict: true, schema: { type: "object", properties: { subniches: { type: "array", items: { type: "string" }, minItems: 3, maxItems: 8 } }, required: ["subniches"], additionalProperties: false } } },
       }),

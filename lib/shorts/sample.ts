@@ -6,10 +6,10 @@ import type {
 } from "@/lib/shorts/types";
 
 const sampleThumbnails = [
-  "https://i.ytimg.com/vi/M7lc1UVf-VE/hqdefault.jpg",
-  "https://i.ytimg.com/vi/aqz-KE-bpKQ/hqdefault.jpg",
-  "https://i.ytimg.com/vi/ScMzIvxBSi4/hqdefault.jpg",
-  "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+  "/demo-food.svg",
+  "/demo-fitness.svg",
+  "/demo-travel.svg",
+  "/demo-home.svg",
 ] as const;
 
 const baseOpportunities = (
@@ -207,8 +207,64 @@ const trendOnePan: Trend = {
 
 export const sampleTrends: readonly Trend[] = [trendStreetFood, trendProteinSnack, trendOnePan];
 
+const demoThemes: Record<string, {
+  topics: readonly [string, string, string];
+  titles: readonly [string, string, string];
+  format: string;
+  hook: string;
+  opportunity: readonly [string, string, string];
+}> = {
+  Travel: {
+    topics: ["budget travel challenges", "tourist versus local formats", "weekend itinerary tests"],
+    titles: ["Can you travel Delhi on ₹1,000?", "Tourist route versus local route", "The weekend trip with one bag"],
+    format: "Visible constraint with a route, test, and final verdict.",
+    hook: "Can you actually experience this place on a real budget?",
+    opportunity: ["Turn a budget challenge into a local travel series", "Tourist versus local: the route nobody shows", "One-bag weekend trips from your city"],
+  },
+  Fitness: {
+    topics: ["beginner strength tests", "small-space training", "simple nutrition swaps"],
+    titles: ["The beginner gym plan I could repeat", "Can this workout fit in one room?", "Three protein swaps from a normal kitchen"],
+    format: "A repeatable test with visible progress and a practical payoff.",
+    hook: "Can a beginner actually stick with this for one week?",
+    opportunity: ["Build a beginner-friendly strength series", "Test a workout in a real small space", "Simple swaps for a stronger daily routine"],
+  },
+  Business: {
+    topics: ["creator workflow experiments", "small product launches", "audience research formats"],
+    titles: ["I rebuilt my creator workflow in one afternoon", "The tiny product launch test", "Three audience questions that changed the idea"],
+    format: "A constrained experiment that makes an invisible process visible.",
+    hook: "What changes when you remove the part everyone assumes is necessary?",
+    opportunity: ["Turn a workflow experiment into a weekly teardown", "Document a small product launch in public", "Make audience research a repeatable format"],
+  },
+  Entertainment: {
+    topics: ["internet culture remixes", "short storytelling formats", "fast opinion formats"],
+    titles: ["The internet remixed this in three different ways", "The reveal is hidden in the first line", "My honest ranking in 30 seconds"],
+    format: "A familiar cultural cue with a fast reveal and a clear point of view.",
+    hook: "Why does this version keep people watching to the end?",
+    opportunity: ["Remix the format with a local point of view", "Build a short story around one sharp reveal", "Turn a fast opinion into a repeatable series"],
+  },
+};
+
+function customizeDemoTrend(trend: Trend, index: number, category: string): Trend {
+  const theme = demoThemes[category];
+  if (!theme) return trend;
+  const title = theme.titles[index] ?? theme.titles[0];
+  return {
+    ...trend,
+    topic: theme.topics[index] ?? theme.topics[0],
+    category,
+    representative: { ...trend.representative, title, channel: `Sample ${category.toLowerCase()} creator` },
+    analysis: {
+      ...trend.analysis,
+      whyItWorks: `The idea is easy to understand, gives the viewer a visible question, and leaves room for another creator to adapt the format.`,
+      viralDna: { ...trend.analysis.viralDna, hook: theme.hook, format: theme.format, culturalRelevance: `The format connects to a familiar ${category.toLowerCase()} creator behavior without requiring a large production setup.` },
+      evolution: { ...trend.analysis.evolution, movement: `The ${category.toLowerCase()} format is spreading through repeatable variations while the creator point of view changes.`, nextWatch: "Watch for sharper proof, stronger local detail, and audience-led variations." },
+    },
+    opportunities: baseOpportunities(`${trend.id}-${category.toLowerCase()}`, theme.opportunity),
+  };
+}
+
 export const defaultFilters: ScanFilters = {
-  region: "India",
+  region: "Delhi NCR",
   category: "Food",
   subcategory: "Street Food",
   subNiche: "Old Delhi food challenges",
@@ -222,6 +278,6 @@ export function getSampleSnapshot(filters: ScanFilters = defaultFilters): Dashbo
     mode: "sample",
     generatedAt: "Sample preview · not live YouTube data",
     filters,
-    trends: sampleTrends,
+    trends: sampleTrends.map((trend, index) => customizeDemoTrend(trend, index, filters.category)),
   };
 }

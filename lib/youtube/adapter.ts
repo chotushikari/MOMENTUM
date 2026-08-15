@@ -14,6 +14,11 @@ const requestTimeoutMs = 8000;
 
 const regionCodes: Record<string, string> = {
   India: "IN",
+  "Delhi NCR": "IN",
+  Mumbai: "IN",
+  Bengaluru: "IN",
+  Pune: "IN",
+  Hyderabad: "IN",
   "United States": "US",
   "United Kingdom": "GB",
   Australia: "AU",
@@ -243,7 +248,7 @@ export async function scanYouTubeShorts(filters: ScanFilters): Promise<ScanRespo
   if (!apiKey) return { status: "configuration", mode: "live", message: "Live YouTube scanning is not configured on this server." };
 
   try {
-    const query = [filters.category, filters.niche].filter(Boolean).join(" ");
+    const query = [filters.region, filters.category, filters.niche].filter(Boolean).join(" ");
     const searchUrl = buildUrl(searchEndpoint, {
       key: apiKey,
       part: "snippet",
