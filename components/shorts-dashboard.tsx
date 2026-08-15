@@ -7,6 +7,7 @@ import {
   ChevronDown,
   CircleAlert,
   Clipboard,
+  Command,
   Clock3,
   ExternalLink,
   Filter,
@@ -26,8 +27,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import { defaultFilters, getSampleSnapshot } from "@/lib/shorts/sample";
 import { personalizeOpportunities } from "@/lib/shorts/personalize";
+import { getSubcategories, getSubniches, taxonomyCategories } from "@/lib/shorts/taxonomy";
 import {
   discoveryModes,
+  hookVariantTypes,
   type AnalysisResponse,
   type ComparisonResult,
   type CompareResponse,
@@ -46,11 +49,10 @@ import {
   type HookResponse,
   type HookVariant,
   type HookVariantType,
+  type TaxonomyResponse,
 } from "@/lib/shorts/types";
 
 const regions = ["India", "United States", "United Kingdom", "Australia"] as const;
-const categories = ["Food", "Travel", "Fitness", "Business", "Entertainment"] as const;
-const niches = ["Street Food", "Budget Travel", "Home Workouts", "Creator Tools", "Local Culture"] as const;
 const timeRanges = ["Last 6h", "Last 24h", "Last 7d"] as const;
 
 const platformOptions = [
@@ -78,6 +80,7 @@ const modeCopy: Record<DiscoveryMode, { label: string; question: string }> = {
 };
 
 type ScanUiState = "preview" | "loading" | "success" | "notice";
+type DrawerView = "why" | "dna" | "opportunities" | "build" | "hooks" | "distribution" | "evidence";
 
 function stringOptions(values: readonly string[]) {
   return values.map((value) => ({ value, label: value }));
@@ -100,6 +103,10 @@ function isHookResponse(value: unknown): value is HookResponse {
 }
 
 function isCompareResponse(value: unknown): value is CompareResponse {
+  return isRecord(value) && typeof value.status === "string" && typeof value.mode === "string";
+}
+
+function isTaxonomyResponse(value: unknown): value is TaxonomyResponse {
   return isRecord(value) && typeof value.status === "string" && typeof value.mode === "string";
 }
 
@@ -335,9 +342,10 @@ function TrendDrawer({
   onProfileChange,
   onOpportunitySelect,
   onDurationChange,
-  onGenerateHooks,
-  onHookSelect,
-  onToggleSaved,
+   onGenerateHooks,
+   onHookSelect,
+   onCompareTrend,
+   onToggleSaved,
 }: {
   trend: Trend;
   profile: CreatorProfile;
@@ -359,9 +367,10 @@ function TrendDrawer({
   onProfileChange: (profile: CreatorProfile) => void;
   onOpportunitySelect: (opportunity: PersonalizedOpportunity) => void;
   onDurationChange: (duration: ContentDuration) => void;
-  onGenerateHooks: () => void;
-  onHookSelect: (hook: HookVariant) => void;
-  onToggleSaved: () => void;
+   onGenerateHooks: () => void;
+   onHookSelect: (hook: HookVariant) => void;
+   onCompareTrend: () => void;
+   onToggleSaved: () => void;
 }) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -377,6 +386,9 @@ function TrendDrawer({
 
   const analysisUnavailable = analysis.mode === "unavailable";
   const [copiedLabel, setCopiedLabel] = useState<string>();
+  const [drawerView, setDrawerView] = useState<DrawerView>("why");
+  const [hookFilter, setHookFilter] = useState<HookVariantType | "all">("all");
+  const [planMessage, setPlanMessage] = useState<string>();
   const titleId = `trend-drawer-${trend.id}`;
   async function copyText(label: string, value: string) {
     try {
@@ -387,6 +399,7 @@ function TrendDrawer({
       setCopiedLabel("Copy unavailable");
     }
   }
+  const visibleHooks = hookFilter === "all" ? hooks : hooks.filter((hook) => hook.type === hookFilter);
   return (
     <div className="fixed inset-0 z-50 bg-[#242522]/35" onMouseDown={onClose}>
       <aside role="dialog" aria-modal="true" aria-labelledby={titleId} className="absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col bg-[#fbfaf7] shadow-2xl motion-safe:animate-[drawer-in_220ms_ease-out]" onMouseDown={(event) => event.stopPropagation()}>
@@ -395,6 +408,34 @@ function TrendDrawer({
           <div className="flex items-center gap-2"><button type="button" aria-pressed={saved} aria-label={saved ? "Remove saved trend" : "Save trend"} onClick={onToggleSaved} className={`grid size-8 place-items-center border ${saved ? "border-[#d6a896] bg-[#f9ebe5] text-[#bc553d]" : "border-[#d8d2c9] text-[#777067] hover:text-[#bc553d]"}`}><Bookmark className="size-4" fill={saved ? "currentColor" : "none"} aria-hidden="true" /></button><button type="button" aria-label="Close trend intelligence" onClick={onClose} className="grid size-8 place-items-center border border-[#d8d2c9] text-[#777067] hover:text-[#2d2a26]"><X className="size-4" aria-hidden="true" /></button></div>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-12 sm:px-7"><div className="sr-only" aria-live="polite">{copiedLabel}</div>
+          <nav className="sticky top-0 z-10 -mx-5 border-b border-[#ddd8cf] bg-[#fbfaf7]/95 px-5 py-3 backdrop-blur sm:-mx-7 sm:px-7" aria-label="Signal actions">
+            <p className="text-[9px] font-semibold tracking-[0.15em] text-[#8a8177]">WHAT SHOULD YOU DO NEXT?</p>
+            <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+              <button type="button" onClick={() => setDrawerView("why")} className={`border px-2 py-2 text-left text-[10px] font-semibold ${drawerView === "why" ? "border-[#d6a896] bg-[#f9ebe5] text-[#9b4634]" : "border-[#e4dfd7] text-[#625c54] hover:border-[#c3a99b]"}`}>Understand it</button>
+              <button type="button" onClick={() => setDrawerView("dna")} className={`border px-2 py-2 text-left text-[10px] font-semibold ${drawerView === "dna" ? "border-[#d6a896] bg-[#f9ebe5] text-[#9b4634]" : "border-[#e4dfd7] text-[#625c54] hover:border-[#c3a99b]"}`}>Show viral DNA</button>
+              <button type="button" onClick={() => setDrawerView("opportunities")} className={`border px-2 py-2 text-left text-[10px] font-semibold ${drawerView === "opportunities" ? "border-[#d6a896] bg-[#f9ebe5] text-[#9b4634]" : "border-[#e4dfd7] text-[#625c54] hover:border-[#c3a99b]"}`}>Find my angle</button>
+              <button type="button" onClick={() => setDrawerView("build")} className={`border px-2 py-2 text-left text-[10px] font-semibold ${drawerView === "build" ? "border-[#d6a896] bg-[#f9ebe5] text-[#9b4634]" : "border-[#e4dfd7] text-[#625c54] hover:border-[#c3a99b]"}`}>Build a Short</button>
+              <button type="button" onClick={() => setDrawerView("hooks")} className={`border px-2 py-2 text-left text-[10px] font-semibold ${drawerView === "hooks" ? "border-[#d6a896] bg-[#f9ebe5] text-[#9b4634]" : "border-[#e4dfd7] text-[#625c54] hover:border-[#c3a99b]"}`}>Generate hooks</button>
+              <button type="button" onClick={onCompareTrend} className="border border-[#e4dfd7] px-2 py-2 text-left text-[10px] font-semibold text-[#625c54] hover:border-[#c3a99b]">Compare Shorts</button>
+              <button type="button" onClick={() => setDrawerView("distribution")} className={`border px-2 py-2 text-left text-[10px] font-semibold ${drawerView === "distribution" ? "border-[#d6a896] bg-[#f9ebe5] text-[#9b4634]" : "border-[#e4dfd7] text-[#625c54] hover:border-[#c3a99b]"}`}>Distribution</button>
+              <button type="button" onClick={() => setDrawerView("evidence")} className={`border px-2 py-2 text-left text-[10px] font-semibold ${drawerView === "evidence" ? "border-[#d6a896] bg-[#f9ebe5] text-[#9b4634]" : "border-[#e4dfd7] text-[#625c54] hover:border-[#c3a99b]"}`}>Evidence</button>
+            </div>
+          </nav>
+
+          {drawerView === "why" ? <section className="border-b border-[#ddd8cf] py-7" aria-labelledby="focused-why-heading"><div className="flex items-center justify-between gap-3"><div><p className="text-[9px] font-semibold tracking-[0.14em] text-[#bc553d]">WHY THIS MATTERS</p><h3 id="focused-why-heading" className="mt-1 text-2xl font-semibold">The signal in one read.</h3></div><span className="text-[9px] font-semibold tracking-[0.12em] text-[#8a8177]">{analysis.mode === "openai" ? "OPENAI" : analysis.mode === "sample" ? "DEMO" : "UNAVAILABLE"}</span></div><p className="mt-4 text-[15px] leading-7 text-[#4d4942]">{analysis.whyItWorks}</p>{analysisUnavailable ? <div className="mt-5 border border-dashed border-[#d7c4b6] bg-[#fffaf5] p-4"><p className="text-[11px] leading-5 text-[#766453]">Observed evidence is available, but interpretation has not been validated yet.</p><button type="button" onClick={onAnalyze} disabled={analyzing} className="mt-3 inline-flex h-9 items-center gap-2 bg-[#242522] px-3 text-[11px] font-semibold text-white hover:bg-[#bc553d] disabled:cursor-wait disabled:opacity-60">{analyzing ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" /> : <Sparkles className="size-3.5" aria-hidden="true" />}{analyzing ? "Analyzing" : "Run grounded analysis"}</button>{analysisMessage ? <p className="mt-2 text-[10px] leading-4 text-[#8a8177]">{analysisMessage}</p> : null}</div> : null}<div className="mt-6 grid grid-cols-3 border-y border-[#e4dfd7] py-3 text-center"><div><p className="text-[9px] font-semibold tracking-[0.12em] text-[#8a8177]">VIEWS</p><p className="mt-1 text-sm font-semibold">{formatMetric(trend.representative.views)}</p></div><div className="border-x border-[#e4dfd7]"><p className="text-[9px] font-semibold tracking-[0.12em] text-[#8a8177]">MOMENTUM</p><p className="mt-1 text-sm font-semibold text-[#bc553d]">{score(trend.metrics.momentum)}</p></div><div><p className="text-[9px] font-semibold tracking-[0.12em] text-[#8a8177]">EVIDENCE</p><p className="mt-1 text-sm font-semibold">{trend.relatedShorts.length + 1} items</p></div></div><p className="mt-4 text-[10px] leading-5 text-[#8a8177]">{trend.representative.mode === "live" ? "Observed YouTube source data is kept separate from this interpretation." : "Demo signal only. This content is scaffolding, not live information."}</p></section> : null}
+
+          {drawerView === "dna" ? <section className="border-b border-[#ddd8cf] py-7" aria-labelledby="focused-dna-heading"><div className="flex items-center justify-between gap-3"><div><p className="text-[9px] font-semibold tracking-[0.14em] text-[#bc553d]">VIRAL DNA</p><h3 id="focused-dna-heading" className="mt-1 text-2xl font-semibold">Why the format holds attention.</h3></div><Layers3 className="size-4 text-[#bc553d]" aria-hidden="true" /></div><div className="mt-4 grid gap-x-6 sm:grid-cols-2"><DnaRow label="HOOK" value={analysis.viralDna.hook} /><DnaRow label="EMOTION" value={analysis.viralDna.emotion} /><DnaRow label="FORMAT" value={analysis.viralDna.format} /><DnaRow label="PARTICIPATION" value={analysis.viralDna.participation} /><DnaRow label="REMIXABILITY" value={analysis.viralDna.remixability} /><DnaRow label="CULTURAL RELEVANCE" value={analysis.viralDna.culturalRelevance} /></div>{analysis.trendDna ? <details className="mt-5 border-t border-[#e4dfd7] pt-4"><summary className="cursor-pointer text-[11px] font-semibold text-[#4d4942]">Show pattern across evidence</summary><div className="mt-3 grid gap-x-6 sm:grid-cols-2"><DnaRow label="CORE FORMAT" value={analysis.trendDna.coreFormat} /><DnaRow label="VIEWER PROMISE" value={analysis.trendDna.viewerPromise} /><DnaRow label="REMIX VECTORS" value={analysis.trendDna.remixVectors.join(" · ")} /></div></details> : null}</section> : null}
+
+          {drawerView === "opportunities" ? <section className="border-b border-[#ddd8cf] py-7" aria-labelledby="focused-opportunity-heading"><p className="text-[9px] font-semibold tracking-[0.14em] text-[#bc553d]">FIND YOUR ANGLE</p><h3 id="focused-opportunity-heading" className="mt-1 text-2xl font-semibold">Three ways into this signal.</h3><div className="mt-4 flex flex-wrap gap-1.5">{creatorProfiles.map((creatorProfile) => <button key={creatorProfile.type} type="button" aria-pressed={profile.type === creatorProfile.type} onClick={() => onProfileChange(creatorProfile)} className={`border px-2.5 py-2 text-[10px] font-medium ${profile.type === creatorProfile.type ? "border-[#d6a896] bg-[#f9ebe5] text-[#9b4634]" : "border-[#ded9d1] text-[#625c54] hover:border-[#c3a99b]"}`}>{creatorProfile.label}</button>)}</div><div className="mt-5">{opportunities.slice(0, 3).map((opportunity) => <OpportunityCard key={opportunity.id} opportunity={opportunity} selected={selectedOpportunityId === opportunity.id} onSelect={() => onOpportunitySelect(opportunity)} />)}</div><p className="mt-4 text-[10px] leading-5 text-[#8a8177]">Choose an angle, then build it. Recommendations explain their connection to the observed signal.</p></section> : null}
+
+          {drawerView === "build" ? <section className="border-b border-[#ddd8cf] py-7" aria-labelledby="focused-build-heading"><div className="flex items-center justify-between gap-3"><div><p className="text-[9px] font-semibold tracking-[0.14em] text-[#bc553d]">BUILD MY SHORT</p><h3 id="focused-build-heading" className="mt-1 text-2xl font-semibold">A focused plan for the next take.</h3></div><WandSparkles className="size-4 text-[#bc553d]" aria-hidden="true" /></div><div className="mt-4 flex flex-wrap gap-1.5" role="group" aria-label="Content duration">{contentDurations.map((duration) => <button key={duration} type="button" aria-pressed={durationSeconds === duration} onClick={() => onDurationChange(duration)} className={`h-8 border px-3 text-[11px] font-semibold ${durationSeconds === duration ? "border-[#bc553d] bg-[#f9ebe5] text-[#9b4634]" : "border-[#d8d2c9] text-[#6f685f] hover:border-[#c3a99b]"}`}>{duration}s</button>)}</div><div className="mt-4 flex flex-wrap gap-1.5">{["Regenerate", "Make shorter", "More surprising", "Beginner-friendly", "More controversial"].map((label) => <button key={label} type="button" onClick={() => setPlanMessage(`${label} is queued for the next grounded generation.`)} className="border border-[#d8d2c9] px-2.5 py-1.5 text-[10px] font-semibold text-[#625c54] hover:border-[#bc553d] hover:text-[#bc553d]">{label}</button>)}</div>{planMessage ? <p className="mt-3 text-[10px] text-[#8a8177]">{planMessage}</p> : null}{contentPlan ? <div className="mt-5 border border-[#d8d2c9] bg-[#fffdf9] p-4"><p className="text-[9px] font-semibold tracking-[0.12em] text-[#bc553d]">{trend.representative.mode === "sample" ? "DEMO PLAN" : "AI CONTENT PLAN"}</p><h4 className="mt-1 text-lg font-semibold">{contentPlan.concept}</h4><div className="mt-4 grid gap-3 text-[12px] leading-5 text-[#4d4942] sm:grid-cols-2"><p><strong>Hook:</strong> {contentPlan.hook}</p><p><strong>First 3 seconds:</strong> {contentPlan.firstThreeSeconds}</p><p><strong>Structure:</strong> {contentPlan.structure}</p><p><strong>CTA:</strong> {contentPlan.cta}</p></div><details className="mt-4 border-t border-[#e4dfd7] pt-3"><summary className="cursor-pointer text-[11px] font-semibold">Show shot list and voiceover</summary><div className="mt-3 text-[12px] leading-5 text-[#4d4942]"><p>{contentPlan.voiceover}</p><ul className="mt-2 grid gap-1 sm:grid-cols-2">{contentPlan.shotList.map((shot) => <li key={shot} className="flex gap-2"><CheckCircle2 className="mt-1 size-3 shrink-0 text-[#bc553d]" aria-hidden="true" />{shot}</li>)}</ul></div></details><p className="mt-4 border-t border-[#e4dfd7] pt-3 text-[11px] leading-5 text-[#766f66]">{contentPlan.evidenceNote}</p></div> : <div className="mt-5 border border-dashed border-[#d7c4b6] bg-[#fffaf5] px-4 py-5 text-[12px] leading-5 text-[#766453]">Run grounded analysis to build from this live evidence. No AI content has been substituted.</div>}</section> : null}
+
+          {drawerView === "hooks" ? <section className="border-b border-[#ddd8cf] py-7" aria-labelledby="focused-hooks-heading"><div className="flex items-center justify-between gap-3"><div><p className="text-[9px] font-semibold tracking-[0.14em] text-[#bc553d]">HOOK GENERATOR</p><h3 id="focused-hooks-heading" className="mt-1 text-2xl font-semibold">Five ways in.</h3></div><button type="button" onClick={onGenerateHooks} disabled={generatingHooks} className="inline-flex h-8 items-center gap-1.5 border border-[#d8d2c9] px-2.5 text-[10px] font-semibold text-[#6f685f] hover:border-[#bc553d] hover:text-[#bc553d] disabled:cursor-wait disabled:opacity-60">{generatingHooks ? <LoaderCircle className="size-3 animate-spin" aria-hidden="true" /> : <RefreshCw className="size-3" aria-hidden="true" />}{generatingHooks ? "Generating" : "Regenerate"}</button></div><div className="mt-4 flex gap-1 overflow-x-auto border-b border-[#e4dfd7] pb-2" role="tablist" aria-label="Hook styles"><button type="button" role="tab" aria-selected={hookFilter === "all"} onClick={() => setHookFilter("all")} className={`shrink-0 px-2 py-1 text-[10px] font-semibold ${hookFilter === "all" ? "text-[#bc553d]" : "text-[#817a71]"}`}>All</button>{hookVariantTypes.map((type) => <button key={type} type="button" role="tab" aria-selected={hookFilter === type} onClick={() => setHookFilter(type)} className={`shrink-0 px-2 py-1 text-[10px] font-semibold ${hookFilter === type ? "text-[#bc553d]" : "text-[#817a71]"}`}>{hookLabels[type]}</button>)}</div>{visibleHooks.length ? <div className="mt-4 space-y-2">{visibleHooks.map((hook) => <div key={hook.id} className={`border p-3 ${selectedHookId === hook.id ? "border-[#d6a896] bg-[#fffaf5]" : "border-[#e4dfd7]"}`}><div className="flex items-start gap-3"><button type="button" aria-pressed={selectedHookId === hook.id} onClick={() => onHookSelect(hook)} className="min-w-0 flex-1 text-left"><span className="text-[9px] font-semibold tracking-[0.12em] text-[#bc553d]">{hookLabels[hook.type]}</span><span className="mt-1 block text-[13px] font-medium leading-5 text-[#2d2a26]">{hook.text}</span><span className="mt-1 block text-[10px] leading-4 text-[#817a71]">{hook.rationale}</span></button><button type="button" aria-label={`Copy ${hookLabels[hook.type]} hook`} onClick={() => copyText("Hook copied", hook.text)} className="grid size-7 shrink-0 place-items-center border border-[#d8d2c9] text-[#777067] hover:text-[#bc553d]"><Clipboard className="size-3.5" aria-hidden="true" /></button></div></div>)}</div> : <div className="mt-4 border border-dashed border-[#d7c4b6] bg-[#fffaf5] px-4 py-4 text-[12px] text-[#766453]">No validated hook variants yet.</div>}{hookMessage ? <p className="mt-3 text-[10px] leading-4 text-[#8a8177]">{hookMessage}</p> : null}</section> : null}
+
+          {drawerView === "distribution" ? <section className="border-b border-[#ddd8cf] py-7" aria-labelledby="focused-distribution-heading"><p className="text-[9px] font-semibold tracking-[0.14em] text-[#bc553d]">DISTRIBUTION</p><h3 id="focused-distribution-heading" className="mt-1 text-2xl font-semibold">Package the idea.</h3>{distribution ? <div className="mt-4 grid gap-x-6 sm:grid-cols-2"><DnaRow label="TITLE" value={distribution.title} /><DnaRow label="UPLOAD WINDOW" value={distribution.uploadWindow} /><DnaRow label="CONFIDENCE" value={distribution.confidence.toUpperCase()} /><DnaRow label="BASIS" value={distribution.basis} /><DnaRow label="HASHTAGS" value={[...distribution.hashtags.primary, ...distribution.hashtags.topic, ...distribution.hashtags.format, ...distribution.hashtags.discovery].join(" ")} /><DnaRow label="KEYWORDS" value={distribution.keywords.join(" · ")} /></div> : <p className="mt-4 text-[12px] leading-5 text-[#766f66]">Distribution suggestions are unavailable until the evidence is interpreted.</p>}</section> : null}
+
+          {drawerView === "evidence" ? <section className="border-b border-[#ddd8cf] py-7" aria-labelledby="focused-evidence-heading"><div className="flex items-center justify-between gap-3"><div><p className="text-[9px] font-semibold tracking-[0.14em] text-[#bc553d]">SOURCE EVIDENCE</p><h3 id="focused-evidence-heading" className="mt-1 text-2xl font-semibold">What we actually observed.</h3></div><span className="text-[9px] font-semibold tracking-[0.12em] text-[#8a8177]">{trend.representative.mode === "live" ? "LIVE" : "DEMO"}</span></div><EvidenceRow trend={trend} />{trend.relatedShorts.map((relatedTrend) => <EvidenceRow key={relatedTrend.id} trend={{ ...trend, representative: relatedTrend }} />)}</section> : null}
+          <div className="hidden" aria-hidden="true">
           <section className="border-b border-[#ddd8cf] py-6" aria-labelledby={titleId}>
             <div className="relative aspect-[16/7] overflow-hidden bg-[#e4dfd5]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -431,8 +472,9 @@ function TrendDrawer({
 
           <section className="border-b border-[#ddd8cf] py-6" aria-labelledby="distribution-heading"><div className="flex items-center justify-between gap-3"><div><p className="text-[9px] font-semibold tracking-[0.14em] text-[#bc553d]">DISTRIBUTION</p><h3 id="distribution-heading" className="mt-1 text-xl font-semibold">Package the idea</h3></div><Clock3 className="size-4 text-[#bc553d]" aria-hidden="true" /></div>{distribution ? <div className="mt-4 grid gap-x-6 sm:grid-cols-2"><DnaRow label="TITLE" value={distribution.title} /><DnaRow label="UPLOAD WINDOW" value={distribution.uploadWindow} /><DnaRow label="CONFIDENCE" value={distribution.confidence.toUpperCase()} /><DnaRow label="BASIS" value={distribution.basis} /><DnaRow label="HASHTAGS" value={[...distribution.hashtags.primary, ...distribution.hashtags.topic, ...distribution.hashtags.format, ...distribution.hashtags.discovery].join(" ")} /><DnaRow label="KEYWORDS" value={distribution.keywords.join(" · ")} /></div> : <p className="mt-3 text-[12px] leading-5 text-[#766f66]">Distribution suggestions are unavailable until the evidence is interpreted.</p>}</section>
 
-          <section className="py-6" aria-labelledby="evidence-heading"><div className="flex items-center justify-between gap-3"><h3 id="evidence-heading" className="text-xl font-semibold">Evidence</h3><span className="text-[9px] font-semibold tracking-[0.12em] text-[#8a8177]">OBSERVED ONLY</span></div><EvidenceRow trend={trend} />{trend.relatedShorts.map((relatedTrend) => <EvidenceRow key={relatedTrend.id} trend={{ ...trend, representative: relatedTrend }} />)}</section>
-        </div>
+           <section className="py-6" aria-labelledby="evidence-heading"><div className="flex items-center justify-between gap-3"><h3 id="evidence-heading" className="text-xl font-semibold">Evidence</h3><span className="text-[9px] font-semibold tracking-[0.12em] text-[#8a8177]">OBSERVED ONLY</span></div><EvidenceRow trend={trend} />{trend.relatedShorts.map((relatedTrend) => <EvidenceRow key={relatedTrend.id} trend={{ ...trend, representative: relatedTrend }} />)}</section>
+           </div>
+         </div>
       </aside>
     </div>
   );
@@ -457,6 +499,15 @@ function EmptyState({ status, onRetry }: { status?: ScanResponse["status"]; onRe
         ? { title: "The live scan did not complete", body: "MOMENTUM could not verify a usable live result for this request. Check the filters and try again.", action: "Try scan again" }
         : { title: "No Shorts in this lens", body: "This view has no verified results for the current filters. Widen the time range or choose another lens.", action: "Scan again" };
   return <div className="border border-dashed border-[#d5cfc6] bg-[#fbfaf7] px-6 py-14 text-center"><CircleAlert className="mx-auto size-5 text-[#bc553d]" aria-hidden="true" /><h3 className="mt-4 text-lg font-semibold text-[#2d2a26]">{copy.title}</h3><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#766f66]">{copy.body}</p><button type="button" onClick={onRetry} className="mt-5 inline-flex h-9 items-center gap-2 border border-[#c9b2a7] px-3 text-[11px] font-semibold text-[#9b4634] hover:bg-[#f9ebe5]"><Search className="size-3.5" aria-hidden="true" />{copy.action}</button></div>;
+}
+
+function PricingDialog({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+  return <div className="fixed inset-0 z-50 grid place-items-center bg-[#242522]/35 p-4" onMouseDown={onClose}><section role="dialog" aria-modal="true" aria-labelledby="pricing-heading" className="w-full max-w-2xl border border-[#d8d2c9] bg-[#fbfaf7] p-6 shadow-2xl sm:p-8" onMouseDown={(event) => event.stopPropagation()}><div className="flex items-start justify-between gap-5"><div><p className="text-[9px] font-semibold tracking-[0.15em] text-[#bc553d]">MOMENTUM PRO</p><h2 id="pricing-heading" className="mt-2 text-2xl font-semibold">More signal, less noise.</h2><p className="mt-2 max-w-lg text-sm leading-6 text-[#766f66]">Plans are designed for the next product phase. Billing is not connected in this MVP.</p></div><button type="button" aria-label="Close pricing" onClick={onClose} className="grid size-8 place-items-center border border-[#d8d2c9] text-[#777067] hover:text-[#2d2a26]"><X className="size-4" aria-hidden="true" /></button></div><div className="mt-7 grid gap-3 sm:grid-cols-3"><div className="border border-[#d8d2c9] p-4"><p className="text-[10px] font-semibold tracking-[0.12em] text-[#8a8177]">FREE</p><p className="mt-2 text-2xl font-semibold">5 scans</p><p className="mt-1 text-[11px] leading-5 text-[#766f66]">Per day in the demo workspace.</p></div><div className="border border-[#c9a99b] bg-[#fffaf5] p-4"><p className="text-[10px] font-semibold tracking-[0.12em] text-[#bc553d]">PRO · COMING SOON</p><p className="mt-2 text-2xl font-semibold">$19<span className="text-sm font-normal">/month</span></p><p className="mt-1 text-[11px] leading-5 text-[#766f66]">Deeper radar history and creator workflows.</p></div><div className="border border-[#d8d2c9] p-4"><p className="text-[10px] font-semibold tracking-[0.12em] text-[#8a8177]">ENTERPRISE · COMING SOON</p><p className="mt-2 text-2xl font-semibold">$199<span className="text-sm font-normal">/month</span></p><p className="mt-1 text-[11px] leading-5 text-[#766f66]">Shared intelligence for teams.</p></div></div><p className="mt-6 border-t border-[#e4dfd7] pt-4 text-[10px] leading-5 text-[#8a8177]">No payment method, subscription, or production enforcement is implemented yet.</p></section></div>;
 }
 
 export function ShortsDashboard() {
@@ -488,13 +539,46 @@ export function ShortsDashboard() {
   const [comparisonMode, setComparisonMode] = useState<"sample" | "openai" | "unavailable">("unavailable");
   const [comparisonMessage, setComparisonMessage] = useState<string>();
   const [comparing, setComparing] = useState(false);
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [pricingOpen, setPricingOpen] = useState(false);
+  const [taxonomyMessage, setTaxonomyMessage] = useState<string>();
+  const [aiSubniches, setAiSubniches] = useState<readonly string[]>([]);
+  const [scanUsage, setScanUsage] = useState<{ day: string; count: number }>({ day: "", count: 0 });
+
+  useEffect(() => {
+    const hydrate = window.setTimeout(() => {
+      try {
+        const stored = JSON.parse(window.localStorage.getItem("momentum-workspace") ?? "null") as unknown;
+        if (!isRecord(stored)) return;
+        const storedFilters = stored.filters;
+        if (isRecord(storedFilters)) setFilters((current) => ({ ...current, ...storedFilters } as ScanFilters));
+        if (typeof stored.profile === "string") {
+          const nextProfile = creatorProfiles.find((item) => item.type === stored.profile);
+          if (nextProfile) setProfile(nextProfile);
+        }
+        if (Array.isArray(stored.savedIds)) setSavedIds(stored.savedIds.filter((item): item is string => typeof item === "string"));
+        if (isRecord(stored.scanUsage) && typeof stored.scanUsage.day === "string" && typeof stored.scanUsage.count === "number") setScanUsage({ day: stored.scanUsage.day, count: Math.max(0, stored.scanUsage.count) });
+      } catch {
+        // Local persistence is an enhancement; the workspace remains usable when storage is unavailable.
+      }
+    }, 0);
+    return () => window.clearTimeout(hydrate);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("momentum-workspace", JSON.stringify({ filters, profile: profile.type, savedIds, scanUsage }));
+  }, [filters, profile.type, savedIds, scanUsage]);
+
+  const subcategoryOptions = getSubcategories(filters.category);
+  const selectedSubcategory = filters.subcategory && subcategoryOptions.includes(filters.subcategory) ? filters.subcategory : subcategoryOptions[0] ?? "";
+  const subnicheOptions = aiSubniches.length ? aiSubniches : getSubniches(filters.category, selectedSubcategory);
 
   const displayedTrends = useMemo(() => {
-    const trends = [...(snapshot?.trends ?? [])];
+    const trends = [...(snapshot?.trends ?? [])].filter((trend) => !showSavedOnly || savedIds.includes(trend.id));
     if (discoveryMode === "fastest-rising") return trends.sort((a, b) => (b.metrics.momentum ?? -1) - (a.metrics.momentum ?? -1)).slice(0, 5);
     if (discoveryMode === "emerging") return trends.sort((a, b) => (b.metrics.opportunityScore ?? -1) - (a.metrics.opportunityScore ?? -1)).filter((trend) => trend.metrics.saturation !== "crowded").slice(0, 5);
     return trends.sort((a, b) => (b.metrics.viralScore ?? -1) - (a.metrics.viralScore ?? -1)).slice(0, 5);
-  }, [discoveryMode, snapshot]);
+  }, [discoveryMode, savedIds, showSavedOnly, snapshot]);
 
   const selectedTrend = snapshot?.trends.find((trend) => trend.id === selectedTrendId);
   const selectedAnalysis = selectedTrend ? analysisOverrides[selectedTrend.id] ?? selectedTrend.analysis : undefined;
@@ -514,17 +598,54 @@ export function ShortsDashboard() {
   const selectedHook = selectedHooks.find((hook) => hook.id === selectedHookIds[selectedTrend?.id ?? ""]) ?? selectedHooks[0];
 
   function updateFilter(key: keyof ScanFilters, value: string) {
-    setFilters((current) => ({ ...current, [key]: value }));
+    setAiSubniches([]);
+    setFilters((current) => {
+      if (key === "category") {
+        const nextSubcategory = getSubcategories(value)[0] ?? "";
+        const nextSubniche = getSubniches(value, nextSubcategory)[0] ?? "";
+        return { ...current, category: value, subcategory: nextSubcategory, subNiche: nextSubniche, niche: nextSubcategory };
+      }
+      if (key === "subcategory") {
+        const nextSubniche = getSubniches(current.category, value)[0] ?? "";
+        return { ...current, subcategory: value, subNiche: nextSubniche, niche: value };
+      }
+      if (key === "subNiche") return { ...current, subNiche: value, niche: current.subcategory ?? current.niche };
+      return { ...current, [key]: value };
+    });
+  }
+
+  async function suggestSubniches() {
+    setTaxonomyMessage("Refining this branch in the background…");
+    try {
+      const response = await fetch("/api/taxonomy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: filters.category, subcategory: selectedSubcategory }) });
+      const payload: unknown = await response.json();
+      if (!isTaxonomyResponse(payload)) throw new Error("Invalid taxonomy response");
+      if (payload.subniches?.length) {
+        setAiSubniches(payload.subniches);
+        setTaxonomyMessage(payload.message ?? "AI taxonomy suggestions are ready.");
+      } else setTaxonomyMessage(payload.message ?? "The curated taxonomy remains available.");
+    } catch {
+      setTaxonomyMessage("AI taxonomy is unavailable. The curated branch remains available.");
+    }
   }
 
   async function scan() {
+    const today = new Date().toISOString().slice(0, 10);
+    const usage = scanUsage.day === today ? scanUsage : { day: today, count: 0 };
+    if (usage.count >= 5) {
+      setScanState("notice");
+      setScanMessage("Free demo limit reached: 5 scans today. Local-only limit for this MVP; billing is not connected.");
+      setPricingOpen(true);
+      return;
+    }
+    setScanUsage({ day: today, count: usage.count + 1 });
     setSelectedTrendId(null);
     setSamplePreview(false);
     setSnapshot(null);
     setScanState("loading");
     setLastScanStatus(undefined);
     setScanMessage("Scanning the selected YouTube Shorts market…");
-    const query = new URLSearchParams({ ...filters });
+    const query = new URLSearchParams({ region: filters.region, category: filters.category, subcategory: selectedSubcategory, subNiche: filters.subNiche ?? "", niche: filters.niche, platform: filters.platform, timeRange: filters.timeRange });
     try {
       const response = await fetch(`/api/scan?${query.toString()}`, { cache: "no-store" });
       const payload: unknown = await response.json();
@@ -624,37 +745,46 @@ export function ShortsDashboard() {
   const topStatus = samplePreview ? "SAMPLE PREVIEW" : snapshot?.mode === "live" ? "LIVE YOUTUBE" : "LIVE SCAN";
   const hasResults = displayedTrends.length > 0;
   const emptyState = !hasResults && !samplePreview;
+  const snapshotTrends = displayedTrends.slice(0, 3);
+  const topSignal = snapshotTrends[0];
+  const topFormat = topSignal?.analysis.viralDna.format ?? "Format signal unavailable";
+  const topHook = topSignal?.analysis.viralDna.hook ?? "Hook pattern unavailable";
+  const topOpportunity = topSignal?.opportunities[0]?.title ?? "Opportunity emerges after a signal is selected";
 
   return (
     <main className="min-h-screen bg-[#f4f1eb] text-[#24221f]">
       <header className="border-b border-[#ddd8cf] bg-[#fbfaf7]">
-        <div className="mx-auto flex max-w-[1380px] items-center justify-between gap-4 px-4 py-4 sm:px-7 lg:px-10">
-          <div className="flex items-center gap-3"><div className="grid size-8 place-items-center bg-[#242522] text-[13px] font-semibold text-white">M</div><div><p className="text-[13px] font-semibold tracking-[0.16em] text-[#242522]">MOMENTUM</p><p className="text-[9px] font-medium tracking-[0.13em] text-[#817a71]">SHORT-FORM INTELLIGENCE</p></div></div>
-          <div className="flex items-center gap-3"><span className="hidden items-center gap-1.5 text-[10px] font-semibold tracking-[0.1em] text-[#817a71] sm:inline-flex"><Video className="size-3.5 text-[#bc553d]" aria-hidden="true" /> YOUTUBE SHORTS</span><span className="border border-[#d8d2c9] px-2 py-1 text-[9px] font-semibold tracking-[0.11em] text-[#766f66]">{topStatus}</span></div>
-        </div>
+          <div className="mx-auto flex max-w-[1380px] items-center justify-between gap-4 px-4 py-4 sm:px-7 lg:px-10">
+           <div className="flex items-center gap-3"><div className="grid size-8 place-items-center bg-[#242522] text-[13px] font-semibold text-white">M</div><div><p className="text-[13px] font-semibold tracking-[0.16em] text-[#242522]">MOMENTUM</p><p className="text-[9px] font-medium tracking-[0.13em] text-[#817a71]">INTELLIGENCE FOR THE TECH INTERNET</p></div></div>
+           <nav className="hidden items-center gap-5 text-[11px] font-semibold text-[#6f685f] md:flex" aria-label="Workspace navigation"><button type="button" onClick={() => { setShowSavedOnly(false); document.getElementById("today")?.scrollIntoView({ behavior: "smooth" }); }} className="text-[#bc553d]">Today</button><button type="button" onClick={() => { setShowSavedOnly(false); document.getElementById("radar")?.scrollIntoView({ behavior: "smooth" }); }}>Radar</button><button type="button" onClick={() => setShowSavedOnly(true)} className={showSavedOnly ? "text-[#bc553d]" : ""}>Saved{savedIds.length ? ` ${savedIds.length}` : ""}</button></nav>
+           <div className="flex items-center gap-2"><button type="button" aria-label="Open command search" onClick={() => setScanMessage("Command search is ready for the next product phase.")} className="hidden items-center gap-2 border border-[#d8d2c9] px-2.5 py-1.5 text-[10px] font-semibold text-[#766f66] hover:border-[#bc553d] hover:text-[#bc553d] sm:inline-flex"><Command className="size-3.5" aria-hidden="true" />Search <span className="text-[9px] font-normal text-[#a19a91]">⌘K</span></button><button type="button" onClick={() => setPricingOpen(true)} className="hidden border border-[#d8d2c9] px-2.5 py-1.5 text-[10px] font-semibold text-[#766f66] hover:border-[#bc553d] hover:text-[#bc553d] lg:inline-flex">Pro · Coming soon</button><span className="hidden items-center gap-1.5 text-[10px] font-semibold tracking-[0.1em] text-[#817a71] xl:inline-flex"><Video className="size-3.5 text-[#bc553d]" aria-hidden="true" /> YOUTUBE SHORTS</span><span className="border border-[#d8d2c9] px-2 py-1 text-[9px] font-semibold tracking-[0.11em] text-[#766f66]">{topStatus}</span></div>
+         </div>
       </header>
 
       <div className="mx-auto max-w-[1380px] px-4 pb-16 sm:px-7 lg:px-10">
         <section className="border-b border-[#d8d2c9] pb-8 pt-10 sm:pt-14" aria-labelledby="page-title">
-          <div className="max-w-3xl"><p className="text-[10px] font-semibold tracking-[0.17em] text-[#bc553d]">MOMENTUM / SHORT-FORM INTELLIGENCE FOR YOUTUBE SHORTS</p><h1 id="page-title" className="mt-4 text-4xl font-semibold leading-[1.05] tracking-[-0.035em] text-[#24221f] sm:text-5xl">What&apos;s moving right now?</h1><p className="mt-4 max-w-2xl text-[15px] leading-7 text-[#6f685f]">Scan a market, see what is already winning, and find the formats with room for your next move.</p></div>
+           <div className="max-w-3xl"><p className="text-[10px] font-semibold tracking-[0.17em] text-[#bc553d]">THE INTELLIGENCE LAYER FOR THE TECH INTERNET</p><h1 id="page-title" className="mt-4 text-4xl font-semibold leading-[1.05] tracking-[-0.035em] text-[#24221f] sm:text-5xl">Three things worth your attention.</h1><p className="mt-4 max-w-2xl text-[15px] leading-7 text-[#6f685f]">MOMENTUM turns what is changing into a clear next move: understand it, find your angle, and make something useful.</p></div>
           <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:items-stretch">
             <div className="hidden flex-1 items-stretch border border-[#cfc7bc] bg-[#fbfaf7] lg:grid lg:grid-cols-5">
               <FilterSelect label="REGION" value={filters.region} options={stringOptions(regions)} onChange={(value) => updateFilter("region", value)} />
-              <FilterSelect label="CATEGORY" value={filters.category} options={stringOptions(categories)} onChange={(value) => updateFilter("category", value)} />
-              <FilterSelect label="NICHE" value={filters.niche} options={stringOptions(niches)} onChange={(value) => updateFilter("niche", value)} />
+               <FilterSelect label="CATEGORY" value={filters.category} options={stringOptions(taxonomyCategories)} onChange={(value) => updateFilter("category", value)} />
+               <FilterSelect label="SUBCATEGORY" value={selectedSubcategory} options={stringOptions(subcategoryOptions)} onChange={(value) => updateFilter("subcategory", value)} />
+               <FilterSelect label="SUB-NICHE" value={filters.subNiche ?? ""} options={stringOptions(subnicheOptions)} onChange={(value) => updateFilter("subNiche", value)} />
               <FilterSelect label="PLATFORM" value={filters.platform} options={platformOptions} onChange={(value) => updateFilter("platform", value)} />
               <FilterSelect label="TIME" value={filters.timeRange} options={stringOptions(timeRanges)} onChange={(value) => updateFilter("timeRange", value)} />
             </div>
             <button type="button" onClick={() => setMobileFiltersOpen(true)} className="inline-flex h-12 items-center justify-center gap-2 border border-[#cfc7bc] bg-[#fbfaf7] px-4 text-sm font-semibold text-[#4b4740] lg:hidden"><Filter className="size-4 text-[#bc553d]" aria-hidden="true" />Filters<span className="text-[10px] font-normal text-[#817a71]">{filters.region} · {filters.category}</span></button>
             <button type="button" onClick={scan} disabled={scanState === "loading"} className="inline-flex h-12 items-center justify-center gap-2 bg-[#242522] px-7 text-sm font-semibold text-white hover:bg-[#bc553d] disabled:cursor-wait disabled:opacity-70"><Search className="size-4" aria-hidden="true" />{scanState === "loading" ? "Scanning" : "Scan"}<span className="hidden text-[10px] font-normal text-[#b7b4ae] sm:inline">↵</span></button>
           </div>
-          <div className="mt-3 flex items-center gap-2 text-[10px] text-[#8a8177]"><span className="h-1.5 w-1.5 bg-[#bc553d]" aria-hidden="true" />{samplePreview ? "Sample preview is separate from live YouTube results." : "Live scan requested. Observed source data and interpretation remain separate."}</div>
+           <div className="mt-3 flex flex-wrap items-center gap-3 text-[10px] text-[#8a8177]"><span className="flex items-center gap-2"><span className="h-1.5 w-1.5 bg-[#bc553d]" aria-hidden="true" />{samplePreview ? "Demo signals are separate from live YouTube results." : "Observed source data and interpretation remain separate."}</span><button type="button" onClick={suggestSubniches} className="font-semibold text-[#bc553d] hover:text-[#873d2d]">Refine sub-niche with AI</button>{taxonomyMessage ? <span>{taxonomyMessage}</span> : null}</div>
         </section>
 
-        <div className="mt-4"><StatusBanner state={scanState} message={scanMessage} /></div>
+         <div className="mt-4"><StatusBanner state={scanState} message={scanMessage} /></div>
 
-        <section className="mt-10" aria-labelledby="discovery-heading">
-          <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-[10px] font-semibold tracking-[0.16em] text-[#bc553d]">DISCOVER</p><h2 id="discovery-heading" className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Three lenses on one market.</h2></div><p className="text-[10px] font-semibold tracking-[0.12em] text-[#8a8177]">{snapshot ? `${snapshot.trends.length} ${snapshot.mode === "live" ? "OBSERVED" : "SAMPLE"} SHORTS` : "NO LIVE RESULTS"}</p></div>
+         {snapshot && hasResults ? <section id="today" className="mt-10 border-y border-[#d8d2c9] bg-[#fbfaf7]" aria-labelledby="snapshot-heading"><div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#e4dfd7] px-4 py-5 sm:px-6"><div><p className="text-[10px] font-semibold tracking-[0.16em] text-[#bc553d]">MOMENTUM SNAPSHOT</p><h2 id="snapshot-heading" className="mt-2 text-2xl font-semibold tracking-[-0.02em]">What deserves your attention.</h2></div><p className="text-[10px] font-semibold tracking-[0.12em] text-[#8a8177]">UPDATED {snapshot.generatedAt.toUpperCase()}</p></div><div className="grid divide-y divide-[#e4dfd7] sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-3"><div className="p-4 sm:p-6"><p className="text-[9px] font-semibold tracking-[0.13em] text-[#bc553d]">VIRAL NOW</p><p className="mt-2 text-sm font-semibold leading-5">{topSignal?.representative.title ?? "No signal yet"}</p><p className="mt-1 text-[11px] leading-5 text-[#766f66]">{topSignal ? `${formatMetric(topSignal.representative.views, " views")} · ${topSignal.representative.channel}` : "Run a scan to see what is moving."}</p></div><div className="p-4 sm:p-6"><p className="text-[9px] font-semibold tracking-[0.13em] text-[#bc553d]">FASTEST RISING</p><p className="mt-2 text-sm font-semibold leading-5">{snapshotTrends[1]?.topic ?? topSignal?.topic ?? "Awaiting a second signal"}</p><p className="mt-1 text-[11px] leading-5 text-[#766f66]">Momentum estimate {score(snapshotTrends[1]?.metrics.momentum ?? topSignal?.metrics.momentum)} · {snapshot.mode === "live" ? "observed" : "demo"}</p></div><div className="p-4 sm:p-6"><p className="text-[9px] font-semibold tracking-[0.13em] text-[#bc553d]">EMERGING OPPORTUNITY</p><p className="mt-2 text-sm font-semibold leading-5">{topOpportunity}</p><p className="mt-1 text-[11px] leading-5 text-[#766f66]">{topSignal?.metrics.saturation === "unknown" ? "Saturation unavailable" : `${capitalize(topSignal?.metrics.saturation)} saturation`}</p></div><div className="border-t border-[#e4dfd7] p-4 sm:p-6"><p className="text-[9px] font-semibold tracking-[0.13em] text-[#8a8177]">TOP FORMAT</p><p className="mt-2 text-sm leading-5 text-[#4d4942]">{topFormat}</p></div><div className="border-t border-[#e4dfd7] p-4 sm:p-6"><p className="text-[9px] font-semibold tracking-[0.13em] text-[#8a8177]">TOP HOOK PATTERN</p><p className="mt-2 text-sm leading-5 text-[#4d4942]">{topHook}</p></div><div className="border-t border-[#e4dfd7] p-4 sm:p-6"><p className="text-[9px] font-semibold tracking-[0.13em] text-[#8a8177]">NEXT MOVE</p><button type="button" onClick={() => topSignal && setSelectedTrendId(topSignal.id)} className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-[#bc553d] hover:text-[#873d2d]">Open the strongest signal <ExternalLink className="size-3.5" aria-hidden="true" /></button></div></div><div className="border-t border-[#e4dfd7] px-4 py-3 text-[10px] text-[#8a8177]">{snapshot.mode === "sample" ? "DEMO SIGNALS · not live information" : "OBSERVED YOUTUBE DATA · AI interpretation is shown separately"}<button type="button" onClick={() => setPricingOpen(true)} className="float-right font-semibold text-[#bc553d] hover:text-[#873d2d]">Need more scans?</button></div></section> : null}
+
+         <section id="radar" className="mt-10" aria-labelledby="discovery-heading">
+           <div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-[10px] font-semibold tracking-[0.16em] text-[#bc553d]">YOUR RADAR</p><h2 id="discovery-heading" className="mt-2 text-2xl font-semibold tracking-[-0.02em]">Open a signal, find your next move.</h2></div><p className="text-[10px] font-semibold tracking-[0.12em] text-[#8a8177]">{showSavedOnly ? "SAVED SIGNALS" : snapshot ? `${snapshot.trends.length} ${snapshot.mode === "live" ? "OBSERVED" : "DEMO"} SHORTS` : "NO LIVE RESULTS"}</p></div>
           <div className="mt-5 grid border-y border-[#d8d2c9] sm:grid-cols-3" role="tablist" aria-label="Discovery modes">
             {discoveryModes.map((mode) => <button key={mode} type="button" role="tab" aria-selected={discoveryMode === mode} onClick={() => { setDiscoveryMode(mode); setSelectedTrendId(null); }} className={`border-b-2 px-3 py-4 text-left transition-colors sm:px-5 ${discoveryMode === mode ? "border-[#bc553d] bg-[#fbfaf7]" : "border-transparent hover:bg-[#f8f4ed]"}`}><span className={`block text-sm font-semibold ${discoveryMode === mode ? "text-[#bc553d]" : "text-[#4b4740]"}`}>{modeCopy[mode].label}</span><span className="mt-1 block text-[11px] leading-4 text-[#817a71]">{modeCopy[mode].question}</span></button>)}
           </div>
@@ -666,11 +796,12 @@ export function ShortsDashboard() {
         </section>
       </div>
 
-      {selectedTrend && selectedAnalysis ? <TrendDrawer trend={selectedTrend} profile={profile} analysis={selectedAnalysis} opportunities={selectedOpportunities} contentPlan={selectedContentPlan} hooks={selectedHooks} distribution={selectedDistribution} selectedOpportunityId={selectedOpportunity?.id} durationSeconds={durationSeconds} selectedHookId={selectedHook?.id} hookMessage={hookMessages[selectedTrend.id]} generatingHooks={generatingHooks} analysisMessage={analysisMessages[selectedTrend.id]} analyzing={analyzing} saved={savedIds.includes(selectedTrend.id)} onClose={() => setSelectedTrendId(null)} onAnalyze={runAnalysis} onProfileChange={changeProfile} onOpportunitySelect={(opportunity) => setSelectedOpportunityIds((current) => ({ ...current, [selectedTrend.id]: opportunity.id }))} onDurationChange={setDurationSeconds} onGenerateHooks={regenerateHooks} onHookSelect={(hook) => setSelectedHookIds((current) => ({ ...current, [selectedTrend.id]: hook.id }))} onToggleSaved={() => setSavedIds((current) => current.includes(selectedTrend.id) ? current.filter((id) => id !== selectedTrend.id) : [...current, selectedTrend.id])} /> : null}
+      {selectedTrend && selectedAnalysis ? <TrendDrawer trend={selectedTrend} profile={profile} analysis={selectedAnalysis} opportunities={selectedOpportunities} contentPlan={selectedContentPlan} hooks={selectedHooks} distribution={selectedDistribution} selectedOpportunityId={selectedOpportunity?.id} durationSeconds={durationSeconds} selectedHookId={selectedHook?.id} hookMessage={hookMessages[selectedTrend.id]} generatingHooks={generatingHooks} analysisMessage={analysisMessages[selectedTrend.id]} analyzing={analyzing} saved={savedIds.includes(selectedTrend.id)} onClose={() => setSelectedTrendId(null)} onAnalyze={runAnalysis} onProfileChange={changeProfile} onOpportunitySelect={(opportunity) => setSelectedOpportunityIds((current) => ({ ...current, [selectedTrend.id]: opportunity.id }))} onDurationChange={setDurationSeconds} onGenerateHooks={regenerateHooks} onHookSelect={(hook) => setSelectedHookIds((current) => ({ ...current, [selectedTrend.id]: hook.id }))} onCompareTrend={() => { toggleCompare(selectedTrend.id); setSelectedTrendId(null); }} onToggleSaved={() => setSavedIds((current) => current.includes(selectedTrend.id) ? current.filter((id) => id !== selectedTrend.id) : [...current, selectedTrend.id])} /> : null}
 
       {comparison ? <ComparisonDrawer comparison={comparison} mode={comparisonMode} onClose={() => setComparison(undefined)} /> : null}
 
-      {mobileFiltersOpen ? <div className="fixed inset-0 z-50 flex items-end bg-[#242522]/35 p-3 sm:items-center sm:justify-center" onMouseDown={() => setMobileFiltersOpen(false)}><section role="dialog" aria-modal="true" aria-labelledby="mobile-filters-heading" className="w-full max-w-lg border border-[#d8d2c9] bg-[#fbfaf7] p-5 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-4"><div><p className="text-[9px] font-semibold tracking-[0.15em] text-[#bc553d]">COMMAND FILTERS</p><h2 id="mobile-filters-heading" className="mt-1 text-xl font-semibold">Choose your market.</h2></div><button type="button" aria-label="Close filters" onClick={() => setMobileFiltersOpen(false)} className="grid size-8 place-items-center border border-[#d8d2c9] text-[#777067]"><X className="size-4" aria-hidden="true" /></button></div><div className="mt-6 grid gap-4 sm:grid-cols-2"><FilterSelect label="REGION" value={filters.region} options={stringOptions(regions)} onChange={(value) => updateFilter("region", value)} /><FilterSelect label="CATEGORY" value={filters.category} options={stringOptions(categories)} onChange={(value) => updateFilter("category", value)} /><FilterSelect label="NICHE" value={filters.niche} options={stringOptions(niches)} onChange={(value) => updateFilter("niche", value)} /><FilterSelect label="PLATFORM" value={filters.platform} options={platformOptions} onChange={(value) => updateFilter("platform", value)} /><FilterSelect label="TIME" value={filters.timeRange} options={stringOptions(timeRanges)} onChange={(value) => updateFilter("timeRange", value)} /></div><button type="button" onClick={() => setMobileFiltersOpen(false)} className="mt-6 h-11 w-full bg-[#242522] text-sm font-semibold text-white hover:bg-[#bc553d]">Apply filters</button></section></div> : null}
+      {mobileFiltersOpen ? <div className="fixed inset-0 z-50 flex items-end bg-[#242522]/35 p-3 sm:items-center sm:justify-center" onMouseDown={() => setMobileFiltersOpen(false)}><section role="dialog" aria-modal="true" aria-labelledby="mobile-filters-heading" className="w-full max-w-lg border border-[#d8d2c9] bg-[#fbfaf7] p-5 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}><div className="flex items-center justify-between gap-4"><div><p className="text-[9px] font-semibold tracking-[0.15em] text-[#bc553d]">RADAR FILTERS</p><h2 id="mobile-filters-heading" className="mt-1 text-xl font-semibold">Choose your market.</h2></div><button type="button" aria-label="Close filters" onClick={() => setMobileFiltersOpen(false)} className="grid size-8 place-items-center border border-[#d8d2c9] text-[#777067]"><X className="size-4" aria-hidden="true" /></button></div><div className="mt-6 grid gap-4 sm:grid-cols-2"><FilterSelect label="REGION" value={filters.region} options={stringOptions(regions)} onChange={(value) => updateFilter("region", value)} /><FilterSelect label="CATEGORY" value={filters.category} options={stringOptions(taxonomyCategories)} onChange={(value) => updateFilter("category", value)} /><FilterSelect label="SUBCATEGORY" value={selectedSubcategory} options={stringOptions(subcategoryOptions)} onChange={(value) => updateFilter("subcategory", value)} /><FilterSelect label="SUB-NICHE" value={filters.subNiche ?? ""} options={stringOptions(subnicheOptions)} onChange={(value) => updateFilter("subNiche", value)} /><FilterSelect label="PLATFORM" value={filters.platform} options={platformOptions} onChange={(value) => updateFilter("platform", value)} /><FilterSelect label="TIME" value={filters.timeRange} options={stringOptions(timeRanges)} onChange={(value) => updateFilter("timeRange", value)} /></div><button type="button" onClick={() => setMobileFiltersOpen(false)} className="mt-6 h-11 w-full bg-[#242522] text-sm font-semibold text-white hover:bg-[#bc553d]">Apply filters</button></section></div> : null}
+      {pricingOpen ? <PricingDialog onClose={() => setPricingOpen(false)} /> : null}
     </main>
   );
 }

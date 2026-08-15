@@ -210,6 +210,8 @@ export const sampleTrends: readonly Trend[] = [trendStreetFood, trendProteinSnac
 export const defaultFilters: ScanFilters = {
   region: "India",
   category: "Food",
+  subcategory: "Street Food",
+  subNiche: "Old Delhi food challenges",
   niche: "Street Food",
   platform: "youtube-shorts",
   timeRange: "Last 24h",

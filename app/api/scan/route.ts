@@ -16,6 +16,8 @@ export async function GET(request: Request) {
   const filters: ScanFilters = {
     region: textParam(url.searchParams.get("region"), "India"),
     category: textParam(url.searchParams.get("category"), "Food"),
+    subcategory: textParam(url.searchParams.get("subcategory"), "Street Food"),
+    subNiche: textParam(url.searchParams.get("subNiche"), "Old Delhi food challenges"),
     niche: textParam(url.searchParams.get("niche"), "Street Food"),
     platform: validPlatforms.includes(platform) ? platform : "youtube-shorts",
     timeRange: textParam(url.searchParams.get("timeRange"), "Last 24h"),

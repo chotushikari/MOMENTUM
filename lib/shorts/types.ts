@@ -35,6 +35,8 @@ export type ScanStatus =
 export interface ScanFilters {
   region: string;
   category: string;
+  subcategory?: string;
+  subNiche?: string;
   niche: string;
   platform: Platform;
   timeRange: string;
@@ -257,6 +259,13 @@ export interface CompareResponse {
   status: "success" | "unavailable" | "error";
   mode: AnalysisMode;
   comparison?: ComparisonResult;
+  message?: string;
+}
+
+export interface TaxonomyResponse {
+  status: "success" | "unavailable" | "error";
+  mode: "openai" | "unavailable";
+  subniches?: readonly string[];
   message?: string;
 }
 
